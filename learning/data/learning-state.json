@@ -1,0 +1,20 @@
+{
+  "pcg-agent-memory-paip-ch1": {
+    "interactive_repl": {
+      "conceptId": "interactive_repl",
+      "stability": 1,
+      "difficulty": 0.4,
+      "lastReview": 1766991856330,
+      "memories": [
+        {
+          "conceptId": "interactive_repl",
+          "content": "Student focused on a specific Lisp feature (symbols as first-class objects) rather than the general concept of an 'interactive REPL' itself, indicating a need to guide them back to the core definition.",
+          "understanding": 0.3,
+          "context": "Initial response to prompt about 'interactive REPL'",
+          "id": "343464f4-77af-4161-88c9-3ffbb9fe0890",
+          "timestamp": 1766991773993
+        }
+      ]
+    }
+  }
+}
