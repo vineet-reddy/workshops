@@ -47,21 +47,57 @@ function getStorageKey(libraryId: string): string {
   return `${STORAGE_KEY_PREFIX}${libraryId}`;
 }
 
+
 /**
- * Load all concept states from localStorage
+ * Load all concept states from localStorage, and sync with server
  */
-export function loadConceptStates(libraryId: string): Map<string, ConceptState> {
+export async function loadConceptStatesWithType(libraryId: string): Promise<Map<string, ConceptState>> {
   if (typeof window === 'undefined') return new Map();
 
-  try {
-    const saved = localStorage.getItem(getStorageKey(libraryId));
-    if (!saved) return new Map();
+  const key = getStorageKey(libraryId);
+  const localData = loadFromLocalStorage(key);
 
-    const parsed = JSON.parse(saved);
-    return new Map(Object.entries(parsed));
+  // Attempt to fetch from server to get latest state
+  try {
+    const res = await fetch('/api/storage');
+    if (res.ok) {
+      const serverDataWrapper = await res.json();
+      const serverData = serverDataWrapper[key];
+
+      if (serverData) {
+        // Merge server data with local data (server wins if different, simple strategy)
+        // In a real app we might want more complex merging logic
+        const merged = { ...localData, ...serverData };
+
+        // Update localStorage to match server
+        localStorage.setItem(key, JSON.stringify(merged));
+
+        return new Map(Object.entries(merged));
+      }
+    }
   } catch (e) {
-    console.error('Failed to load concept states:', e);
-    return new Map();
+    console.error('Failed to fetch from server:', e);
+  }
+
+  return new Map(Object.entries(localData));
+}
+
+// Synchronous fallback for components that can't wait (renders using localStorage first)
+export function loadConceptStates(libraryId: string): Map<string, ConceptState> {
+  if (typeof window === 'undefined') return new Map();
+  const key = getStorageKey(libraryId);
+  const data = loadFromLocalStorage(key);
+  return new Map(Object.entries(data));
+}
+
+function loadFromLocalStorage(key: string): Record<string, ConceptState> {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return {};
+    return JSON.parse(saved);
+  } catch (e) {
+    console.error('Failed to load local data:', e);
+    return {};
   }
 }
 

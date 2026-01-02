@@ -25,7 +25,7 @@ import LibrarySelector from './components/LibrarySelector';
 import ReviewDialogue from './components/ReviewDialogue';
 
 // Memory and spaced repetition imports
-import { loadConceptStates, ConceptAssessment } from '@/lib/memory-store';
+import { loadConceptStates, loadConceptStatesWithType, ConceptAssessment } from '@/lib/memory-store';
 import { getDueForReview, getLearningStats, getUpcomingReviews, DueConcept } from '@/lib/spaced-repetition';
 
 type Library = {
@@ -119,13 +119,17 @@ function HomeContent() {
     }
   }, [selectedLibraryId, libraries, router, searchParams]);
 
-  // Load mastered concepts from localStorage on mount
+  // Load mastered concepts from localStorage AND server on mount
   useEffect(() => {
-    const saved = localStorage.getItem(`pcg-mastery-${selectedLibraryId}`);
+    if (!selectedLibraryId) return;
+
+    const key = `pcg-mastery-${selectedLibraryId}`;
+
+    // 1. Load from LocalStorage (Fast)
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Convert object to Map
         const map = new Map<string, MasteryRecord>(
           Object.entries(parsed).map(([id, record]) => [id, record as MasteryRecord])
         );
@@ -134,18 +138,51 @@ function HomeContent() {
         console.error('Failed to load mastery data:', e);
       }
     }
-  }, []);
+
+    // 2. Sync with Server (Persistence)
+    fetch('/api/storage')
+      .then(res => res.json())
+      .then(data => {
+        const serverMastery = data[key];
+        if (serverMastery) {
+          setMasteredConcepts(prev => {
+            const next = new Map(prev); // Start with local data
+
+            // Merge server data (server allows restoration of lost local data)
+            Object.entries(serverMastery).forEach(([id, record]) => {
+              // Prefer existing local data if conflict? Or server?
+              // Since mastery is permanent, if it exists on server, we should have it.
+              if (!next.has(id)) {
+                next.set(id, record as MasteryRecord);
+              }
+            });
+
+            // Update localStorage to keep it fresh
+            const obj = Object.fromEntries(next.entries());
+            localStorage.setItem(key, JSON.stringify(obj));
+
+            return next;
+          });
+        }
+      })
+      .catch(err => console.error('Failed to load mastery from server:', err));
+
+  }, [selectedLibraryId]);
 
   // Check for concepts due for review
   useEffect(() => {
     if (!selectedLibraryId) return;
 
-    const conceptStates = loadConceptStates(selectedLibraryId);
-    const due = getDueForReview(conceptStates);
-    const upcoming = getUpcomingReviews(conceptStates, 3);
+    // 1. Initial synchronous load (fast, from localStorage)
+    const initialStates = loadConceptStates(selectedLibraryId);
+    setDueForReview(getDueForReview(initialStates));
+    setUpcomingReviews(getUpcomingReviews(initialStates, 3));
 
-    setDueForReview(due);
-    setUpcomingReviews(upcoming);
+    // 2. Async sync with server (ensure data persistence)
+    loadConceptStatesWithType(selectedLibraryId).then(syncedStates => {
+      setDueForReview(getDueForReview(syncedStates));
+      setUpcomingReviews(getUpcomingReviews(syncedStates, 3));
+    }).catch(err => console.error('Failed to sync with server:', err));
   }, [selectedLibraryId, reviewDialogueOpen]); // Refresh after review dialogue closes
 
   const handleStartReviewSession = () => {
@@ -298,8 +335,8 @@ function HomeContent() {
             <button
               onClick={() => setActiveTab('library')}
               className={`px-4 py-2 rounded-t-lg font-medium transition-colors ${activeTab === 'library'
-                  ? 'bg-white text-slate-900'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                ? 'bg-white text-slate-900'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
             >
               Library
@@ -307,15 +344,15 @@ function HomeContent() {
             <button
               onClick={() => setActiveTab('review')}
               className={`px-4 py-2 rounded-t-lg font-medium transition-colors flex items-center gap-2 ${activeTab === 'review'
-                  ? 'bg-white text-slate-900'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                ? 'bg-white text-slate-900'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
             >
               Review
               {dueForReview.length > 0 && (
                 <span className={`px-2 py-0.5 text-xs rounded-full ${activeTab === 'review'
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-blue-500 text-white'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-blue-500 text-white'
                   }`}>
                   {dueForReview.length}
                 </span>
@@ -486,10 +523,10 @@ function HomeContent() {
                           )}
                         </div>
                         <span className={`ml-3 px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${retrievabilityPercent < 50
-                            ? 'bg-red-100 text-red-700'
-                            : retrievabilityPercent < 70
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-green-100 text-green-700'
+                          ? 'bg-red-100 text-red-700'
+                          : retrievabilityPercent < 70
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-100 text-green-700'
                           }`}>
                           {retrievabilityPercent}% retained
                         </span>

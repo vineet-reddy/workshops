@@ -5,6 +5,3 @@ __pycache__/
 .DS_Store
 .cursor/
 .vscode/
-
-# Local learning data
-learning/data/learning-state.json
