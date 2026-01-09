@@ -495,6 +495,61 @@ function HomeContent() {
                   <p className="text-sm text-slate-500 mt-2">
                     Keep learning new concepts and they'll appear here when it's time to review.
                   </p>
+                  
+                  {/* Demo Mode Button */}
+                  <div className="mt-6 pt-6 border-t border-slate-200">
+                    <p className="text-xs text-slate-400 mb-3">Demo Mode</p>
+                    <button
+                      onClick={() => {
+                        // Inject test data with old timestamps to simulate due reviews
+                        const testConcepts = concepts.slice(0, 3); // Take first 3 concepts
+                        const key = `pcg-agent-memory-${selectedLibraryId}`;
+                        const now = Date.now();
+                        const twoDaysAgo = now - (2 * 24 * 60 * 60 * 1000);
+                        
+                        const testData: Record<string, any> = {};
+                        testConcepts.forEach((concept, idx) => {
+                          testData[concept.id] = {
+                            conceptId: concept.id,
+                            stability: 1, // 1 day stability means it's overdue after 1 day
+                            difficulty: 0.3 + (idx * 0.1),
+                            lastReview: twoDaysAgo - (idx * 12 * 60 * 60 * 1000), // Stagger by 12 hours
+                            memories: [
+                              {
+                                id: crypto.randomUUID(),
+                                conceptId: concept.id,
+                                content: `Student showed initial understanding of ${concept.name} but needs more practice with edge cases.`,
+                                understanding: 0.6 + (idx * 0.1),
+                                timestamp: twoDaysAgo - (idx * 12 * 60 * 60 * 1000),
+                                context: 'Initial learning session'
+                              }
+                            ]
+                          };
+                        });
+                        
+                        // Save to localStorage and trigger refresh
+                        localStorage.setItem(key, JSON.stringify(testData));
+                        
+                        // Also sync to server
+                        fetch('/api/storage', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ [key]: testData })
+                        }).catch(err => console.error('Failed to sync:', err));
+                        
+                        // Force refresh the due concepts
+                        const states = new Map(Object.entries(testData));
+                        setDueForReview(getDueForReview(states as any));
+                        setUpcomingReviews(getUpcomingReviews(states as any, 3));
+                      }}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      📚 Load Demo Review Data
+                    </button>
+                    <p className="text-xs text-slate-400 mt-2">
+                      Adds 3 concepts with old timestamps to trigger reviews
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

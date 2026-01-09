@@ -42,6 +42,7 @@ import {
 import {
   DueConcept,
   calculateRetrievability,
+  calculateNextInterval,
 } from '@/lib/spaced-repetition';
 
 type Message = {
@@ -346,18 +347,50 @@ export default function ReviewDialogue({
           </div>
           
           {reviewComplete && (
-            <div className="flex items-center justify-between pt-2 border-t">
-              <span className="text-sm text-green-600 font-medium">
-                Review session complete!
-              </span>
-              <Button 
-                onClick={handleFinishReview}
-                variant="default"
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-              >
-                Finish Review
-              </Button>
+            <div className="pt-3 border-t space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-green-600 font-medium">
+                  ✅ Review session complete!
+                </span>
+                <Button 
+                  onClick={handleFinishReview}
+                  variant="default"
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Finish Review
+                </Button>
+              </div>
+              
+              {/* Show next review schedule */}
+              {allAssessments.length > 0 && (
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-xs font-medium text-blue-700 mb-2">📅 Next Reviews Scheduled:</p>
+                  <div className="space-y-1">
+                    {allAssessments.map((assessment) => {
+                      const currentState = dueConcepts.find(dc => dc.conceptId === assessment.conceptId)?.state;
+                      const currentStability = currentState?.stability || 1;
+                      const newStability = calculateNextInterval(
+                        currentStability,
+                        assessment.understanding,
+                        currentState?.difficulty || 0.3
+                      );
+                      const daysUntilNext = Math.round(newStability);
+                      
+                      return (
+                        <div key={assessment.conceptId} className="flex items-center justify-between text-xs">
+                          <span className="text-blue-800">
+                            {conceptNames.get(assessment.conceptId) || assessment.conceptId}
+                          </span>
+                          <span className="text-blue-600 font-medium">
+                            {daysUntilNext === 1 ? 'Tomorrow' : `in ${daysUntilNext} days`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
